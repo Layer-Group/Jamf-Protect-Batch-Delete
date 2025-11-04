@@ -39,7 +39,7 @@ The app does log to Unified Logging. You can view the logs like this:
 `log stream --predicate 'subsystem == "co.uk.mallion.jamf-protect-batch-delete"' --level info`
 
 
-<img width="1014" alt="Screenshot2" src="https://github-production-user-asset-6210df.s3.amazonaws.com/57557745/509828631-425b3829-3aa3-43f1-9dd2-162abce2d892.png">
+<img width="1014" alt="Screenshot2" src="[https://github-production-user-asset-6210df.s3.amazonaws.com/57557745/509828631-425b3829-3aa3-43f1-9dd2-162abce2d892.png](https://github-production-user-asset-6210df.s3.amazonaws.com/57557745/509828631-425b3829-3aa3-43f1-9dd2-162abce2d892.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20251104%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20251104T223155Z&X-Amz-Expires=300&X-Amz-Signature=aae5b0ca524d95c46cd9a528bd8b32aeb98d4b601e754b700775726d56191a1f&X-Amz-SignedHeaders=host)">
 
 ### Roadmap
 
