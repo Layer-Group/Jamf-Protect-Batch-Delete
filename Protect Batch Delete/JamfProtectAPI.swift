@@ -225,7 +225,7 @@ mutation deleteComputer {
             request.httpBody = jsonData
         }
         
-        guard let (data, response) = try? await URLSession.shared.data(for: request)
+        guard let (_, response) = try? await URLSession.shared.data(for: request)
         else {
             Logger.protect.error("Could not initiate connection to \(url, privacy: .public).")
             return nil
@@ -271,6 +271,10 @@ struct Item: Decodable, Identifiable {
     var status = "Found"
     var uuid, checkin : String
     var hostName, serial: String
+    // Tracks how many times this item has been retried during deletion
+    var retryCount: Int = 0
+    // Holds the last error message or code for export and details view
+    var lastError: String? = nil
     
     var formatedCheckin: String {
         let components = self.checkin.components(separatedBy: ".")

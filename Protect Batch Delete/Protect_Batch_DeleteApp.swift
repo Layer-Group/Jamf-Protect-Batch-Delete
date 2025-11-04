@@ -18,6 +18,21 @@ struct Protect_Batch_DeleteApp: App {
 
         }
         .windowResizability(.contentSize)
+        .commands { ExportCommands() }
 
+    }
+}
+
+// MARK: - App Commands
+struct ExportCommands: Commands {
+    @FocusedValue(\.exportSuccessesAction) var exportAction
+    @FocusedValue(\.hasSuccesses) var hasSuccesses
+
+    var body: some Commands {
+        CommandGroup(after: .saveItem) {
+            Button("Export successes CSV") { exportAction?() }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+                .disabled(!(hasSuccesses ?? false))
+        }
     }
 }

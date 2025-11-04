@@ -21,6 +21,12 @@ This is an actively maintained fork of the original project by red5coder, with o
 - Bulk delete with confirmation dialog
 - Optional Keychain storage for the API password
 - Unified Logging integration for audit/troubleshooting
+ - Non‑blocking progress overlay showing overall status (Queued/Running/Success/Failed)
+ - Per‑item status updates in the table (Queued/Running/Retried/Failed/Success)
+ - Retry failed items with exponential backoff
+ - Error banner with expandable details and “Export failures CSV”
+ - Export successful deletions to CSV (toolbar button and File → Export successes CSV)
+ - Dark Mode and VoiceOver support
 
 ## Requirements
 
@@ -59,6 +65,19 @@ Ensure the API client has the permissions listed in Requirements.
 4. Use search, sort, and selection tools to review the list.
 5. Click "Delete Selected" and confirm to proceed.
 
+### During and after a run
+
+- While deleting, a non‑blocking overlay shows overall progress; the table’s Status column updates per item.
+- On completion:
+  - If any items failed, a completion overlay appears with actions: Retry failed, Export failures CSV, Export successes CSV, Dismiss.
+  - A top error banner summarizes failures and can expand to show detailed errors; it remains until dismissed.
+  - If no items failed, the completion overlay is suppressed, but you can still export successes from the toolbar or File menu.
+
+### Exporting results
+
+- Export failures: use the button in the error banner or completion overlay.
+- Export successes: use the toolbar button or File → Export successes CSV (⇧⌘E).
+
 ### CSV format (example)
 
 ```text
@@ -85,6 +104,16 @@ log stream --predicate 'subsystem == "co.uk.mallion.jamf-protect-batch-delete"' 
 - If you enable “Save Password”, the password is stored in your Keychain under the service `co.uk.mallion.jamfprotect-batch-delete`.
 - Deletions are permanent in Jamf Protect. Perform a small test first and consider exporting a list of devices before bulk actions.
 
+### App Sandbox permissions
+
+The app uses App Sandbox with “User Selected File Read/Write” so save/open panels can read and write files the user chooses. If you see “Unable to display save panel…” in a custom build, ensure your target’s entitlements include:
+
+```xml
+<key>com.apple.security.app-sandbox</key><true/>
+<key>com.apple.security.files.user-selected.read-write</key><true/>
+<key>com.apple.security.network.client</key><true/>
+```
+
 ## Troubleshooting
 
 - 401/403 authentication errors: verify the URL, Client ID, and password; confirm API client permissions; ensure the URL includes `https://` and your correct tenant domain.
@@ -98,7 +127,7 @@ See detailed priorities, acceptance criteria, and UI flows in `ROADMAP.md`.
 - Safer dry‑run preview before applying deletions
 - CSV export of fetched computers and selected deletions
 - Enhanced filters (check‑in ranges, alert state, hostname/serial patterns)
-- Progress UI with retries and clearer error reporting
+- Further refinements to progress UI and error reporting
 - Keyboard shortcuts and accessibility improvements
 
 ## Contributing

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 import os.log
 
 
@@ -65,9 +66,22 @@ struct ContentView: View {
 
 
     
+    // MARK: - Progress / Error UI State
+    @State private var showProgressOverlay = false
+    @State private var runCompleted = false
+    @State private var totalToProcess: Int = 0
+    @State private var numProcessed: Int = 0
+    @State private var numSucceeded: Int = 0
+    @State private var numFailed: Int = 0
+    @State private var numQueued: Int = 0
+    @State private var numRunning: Int = 0
+    @State private var showErrorBanner = false
+    @State private var errorDetailsExpanded = false
+
     var body: some View {
         
-        VStack(alignment: .leading) {
+        return ZStack(alignment: .top) {
+            VStack(alignment: .leading) {
             
             HStack(alignment: .center){
                 
@@ -108,10 +122,13 @@ struct ContentView: View {
                 }
             }
             .padding()
-            .alert(isPresented: self.$showAlert,
-                   content: {
-                self.showCustomAlert()
-            })
+            .alert(isPresented: $showAlert) {
+                Alert(
+                    title: Text(alertTitle),
+                    message: Text(alertMessage),
+                    dismissButton: .default(Text("OK"))
+                )
+            }
             
             Toggle(isOn: $savePassword) {
                 Text("Save Password")
@@ -242,6 +259,113 @@ struct ContentView: View {
 
                 }
 
+            }
+        }
+        // Error banner shown when there are failures. Stays until the user dismisses it
+        .overlay(alignment: .top) {
+            if showErrorBanner {
+                VStack(spacing: 0) {
+                    HStack(alignment: .center) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.yellow)
+                            .imageScale(.large)
+                            .accessibilityHidden(true)
+                        Text("Some items failed: \(numFailed) of \(totalToProcess)")
+                            .font(.headline)
+                        Spacer()
+                        Button(action: { exportFailuresCSV() }) {
+                            Label("Export failures CSV", systemImage: "square.and.arrow.up")
+                        }
+                        .accessibilityLabel("Export failures as CSV")
+                        .buttonStyle(.bordered)
+                        Button(action: { showErrorBanner = false }) {
+                            Image(systemName: "xmark")
+                        }
+                        .accessibilityLabel("Dismiss error banner")
+                        .buttonStyle(.plain)
+                    }
+                    .padding(10)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(6)
+
+                    if errorDetailsExpanded {
+                        Divider()
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(failedItems(), id: \.id) { item in
+                                    HStack(alignment: .top) {
+                                        Text(item.serial).font(.caption).bold()
+                                        Text(item.lastError ?? "Unknown error")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .textSelection(.enabled)
+                                        Spacer()
+                                    }
+                                }
+                            }
+                            .padding([.leading, .trailing, .bottom], 10)
+                        }
+                        .frame(maxHeight: 160)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(6)
+                    }
+
+                    Button(errorDetailsExpanded ? "Hide details" : "Show details") {
+                        errorDetailsExpanded.toggle()
+                    }
+                    .buttonStyle(.link)
+                    .padding(.bottom, 8)
+                }
+                .padding()
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Failure summary. \(numFailed) failed of \(totalToProcess)")
+            }
+        }
+        // Non-blocking progress overlay during run; interactive summary when complete
+        .overlay(alignment: .center) {
+            if showProgressOverlay {
+                VStack(alignment: .leading, spacing: 14) {
+                    if !runCompleted {
+                        Text("Processing \(totalToProcess) items…")
+                            .font(.headline)
+                        ProgressView(value: Double(numProcessed), total: Double(max(totalToProcess, 1)))
+                            .frame(width: 360)
+                        HStack {
+                            statusPill(label: "Queued", value: numQueued, color: .gray)
+                            statusPill(label: "Running", value: numRunning, color: .blue)
+                            statusPill(label: "Success", value: numSucceeded, color: .green)
+                            statusPill(label: "Failed", value: numFailed, color: .red)
+                        }
+                    } else {
+                        Text("Completed: \(numSucceeded) success, \(numFailed) failed")
+                            .font(.headline)
+                        HStack(spacing: 10) {
+                            Button("Retry failed", action: retryFailed)
+                                .buttonStyle(.borderedProminent)
+                                .disabled(numFailed == 0)
+                                .accessibilityLabel("Retry failed items")
+                            Button("Export failures CSV", action: exportFailuresCSV)
+                                .buttonStyle(.bordered)
+                                .disabled(numFailed == 0)
+                                .accessibilityLabel("Export failures as CSV")
+                            Button("Export successes CSV", action: exportSuccessesCSV)
+                                .buttonStyle(.bordered)
+                                .disabled(numSucceeded == 0)
+                                .accessibilityLabel("Export successes as CSV")
+                            Button("Dismiss") { showProgressOverlay = false }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Dismiss progress summary")
+                        }
+                    }
+                }
+                .padding(20)
+                .background(.ultraThinMaterial)
+                .cornerRadius(12)
+                .shadow(radius: 10)
+                .allowsHitTesting(runCompleted)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(runCompleted ? "Run completed." : "Run in progress.")
+            }
         }
         .onAppear {
             let defaults = UserDefaults.standard
@@ -256,8 +380,89 @@ struct ContentView: View {
             }
             updateFetchButton()
         }
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button(action: { exportSuccessesCSV() }) {
+                    Label("Export successes CSV", systemImage: "checkmark.circle")
+                }
+                .accessibilityLabel("Export successes as CSV")
+                .disabled(succeededItems().isEmpty)
+            }
+        }
+        .focusedValue(\.exportSuccessesAction, { exportSuccessesCSV() })
+        .focusedValue(\.hasSuccesses, !succeededItems().isEmpty)
 
 
+    }
+
+    // MARK: - Helpers for Overlay/Banner
+    func statusPill(label: String, value: Int, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text("\(label): \(value)").font(.caption2)
+        }
+        .padding(6)
+        .background(Color.secondary.opacity(0.1))
+        .cornerRadius(8)
+    }
+
+    func failedItems() -> [Item] {
+        return foundComputers.filter { $0.status.lowercased().contains("failed") || $0.status.lowercased().contains("error") }
+    }
+
+    func succeededItems() -> [Item] {
+        return foundComputers.filter { $0.status.lowercased().contains("success") || $0.status.lowercased().contains("deleted") }
+    }
+
+    func indicesOfFailedItems() -> [Int] {
+        return foundComputers.indices.filter {
+            let s = foundComputers[$0].status.lowercased()
+            return s.contains("failed") || s.contains("error")
+        }
+    }
+
+    func refreshProgressCounters() {
+        let selected = foundComputers.filter { $0.delete }
+        totalToProcess = selected.count
+        numSucceeded = selected.filter { $0.status.lowercased().contains("success") || $0.status.lowercased().contains("deleted") }.count
+        numFailed = selected.filter { $0.status.lowercased().contains("failed") || $0.status.lowercased().contains("error") }.count
+        numRunning = selected.filter { $0.status.lowercased().contains("running") }.count
+        numQueued = selected.filter { $0.status.lowercased().contains("queued") || $0.status.lowercased().contains("retried") }.count
+        numProcessed = numSucceeded + numFailed
+    }
+
+    func beginRunState() {
+        // Initialize states for a new run
+        for idx in foundComputers.indices {
+            if foundComputers[idx].delete {
+                foundComputers[idx].status = "Queued"
+            }
+        }
+        runCompleted = false
+        showProgressOverlay = true
+        showErrorBanner = false
+        errorDetailsExpanded = false
+        refreshProgressCounters()
+    }
+
+    func beginRetryState() {
+        // Initialize states for a retry run (failed items only)
+        let failedIdx = indicesOfFailedItems()
+        for idx in failedIdx {
+            foundComputers[idx].status = "Queued"
+        }
+        runCompleted = false
+        showProgressOverlay = true
+        showErrorBanner = false
+        errorDetailsExpanded = false
+        setCountersFromIndices(failedIdx)
+    }
+
+    func completeRunState() {
+        runCompleted = true
+        showErrorBanner = numFailed > 0
+        // Only show the completion overlay when there are failures
+        showProgressOverlay = numFailed > 0
     }
     
     
@@ -297,7 +502,7 @@ struct ContentView: View {
     
     
     func updateFetchButton() {
-        if protectURL.validURL && !clientID.isEmpty && !password.isEmpty  {
+        if isValidURL(protectURL) && !clientID.isEmpty && !password.isEmpty  {
             fetchButtonDisabled = false
         } else {
             fetchButtonDisabled = true
@@ -316,12 +521,10 @@ struct ContentView: View {
     }
 
     
-    func showCustomAlert() -> Alert {
-        return Alert(
-                title: Text(alertTitle),
-                message: Text(alertMessage),
-                dismissButton: .default(Text("OK"))
-                )
+    func isValidURL(_ value: String) -> Bool {
+        let regEx = "^((http|https)://)[-a-zA-Z0-9@:%._\\+~#?&//=]{2,256}\\.[a-z]{2,6}\\b([-a-zA-Z0-9@:%._\\+~#?&//=]*)$"
+        let predicate = NSPredicate(format: "SELF MATCHES %@", argumentArray: [regEx])
+        return predicate.evaluate(with: value)
     }
     
     
@@ -336,54 +539,42 @@ struct ContentView: View {
             return
         }
         Logger.protect.info("Sucessfully authenticated to Protect.")
-        var showError = false
-        
-        var message = "All \(selectedComputerCount) computers where deleted."
-        if selectedComputerCount < 2 {
-           message = "The computer was deleted."
-        }
-        
+        beginRunState()
         for (index, computer) in foundComputers.enumerated() {
             if computer.delete {
-                let (computerResult, computerResponse) = await jamfProtect.listComputerBySerial(protectURL: "https://eduservices1.protect.jamfcloud.com" , access_token: authToken.access_token, serial: computer.serial)
-                guard let computerResult = computerResult else { continue }
+                foundComputers[index].status = "Running"
+                refreshProgressCounters()
+                let (computerResult, computerResponse) = await jamfProtect.listComputerBySerial(protectURL: protectURL , access_token: authToken.access_token, serial: computer.serial)
+                guard let computerResult = computerResult else {
+                    foundComputers[index].status = "Failed"
+                    foundComputers[index].lastError = "Lookup failed (no response)"
+                    refreshProgressCounters()
+                    continue
+                }
                 if let computerResponse = computerResponse , computerResponse == 200 , computerResult.data.listComputers.items.count > 0 {
-                    Logger.protect.info("Deleted computer \(computer.serial, privacy: .public).")
                     foundComputers[index].checkin = computerResult.data.listComputers.items[0].checkin
                     foundComputers[index].uuid = computerResult.data.listComputers.items[0].uuid
                     foundComputers[index].hostName = computerResult.data.listComputers.items[0].hostName
-                    foundComputers[index].status = "Found"
                     if let responseCode = await jamfProtect.deleteComputer(protectURL: protectURL , access_token: authToken.access_token, uuid: foundComputers[index].uuid) {
                         if responseCode != 200 {
                             Logger.protect.error("Could not delete computer \(computer.serial, privacy: .public), error \(responseCode).")
-                            foundComputers[index].status = "Error \(responseCode)"
-                            showError = true
+                            foundComputers[index].status = "Failed"
+                            foundComputers[index].lastError = "HTTP \(responseCode) while deleting"
                         } else {
                             Logger.protect.info("Computer \(computer.serial, privacy: .public) was deleted.")
-                            foundComputers[index].status = "Deleted"
+                            foundComputers[index].status = "Success"
                         }
                     }
                 } else {
                     Logger.protect.error("Could not find computer \(computer.serial, privacy: .public).")
-                    showError = true
-                    foundComputers[index].status = "Error \(computerResponse)"
+                    foundComputers[index].status = "Failed"
+                    foundComputers[index].lastError = "Lookup failed (\(computerResponse ?? 0))"
                 }
+                refreshProgressCounters()
             }
         }
-        
-        
-        if showError {
-            //Deletion was unsuccessful
-            alertMessage = "Could not Delete one or more computers"
-            alertTitle = "Error"
-            showAlert = true
-        } else {
-            //Deletion was successful
-            alertMessage = message
-            alertTitle = "Successful Deletion"
-            showAlert = true
-            deleteButtonDisabled = true
-        }
+        completeRunState()
+        updateDeleteButtonState()
 
 
         
@@ -400,42 +591,29 @@ struct ContentView: View {
             return
         }
         Logger.protect.info("Sucessfully authenticated to Protect.")
-        var showError = false
-        
-        var message = "All \(selectedComputerCount) computers where deleted."
-        if selectedComputerCount < 2 {
-           message = "The computer was deleted."
-        }
-
-        
+        beginRunState()
         for (index, computer) in foundComputers.enumerated() {
             if computer.delete {
+                foundComputers[index].status = "Running"
+                refreshProgressCounters()
                 if let responseCode = await jamfProtect.deleteComputer(protectURL: protectURL , access_token: authToken.access_token, uuid: computer.uuid) {
                     if responseCode != 200 {
                         Logger.protect.error("Could not delete computer \(computer.serial, privacy: .public), error \(responseCode).")
-                        foundComputers[index].status = "Error \(responseCode)"
-                        showError = true
+                        foundComputers[index].status = "Failed"
+                        foundComputers[index].lastError = "HTTP \(responseCode) while deleting"
                     } else {
                         Logger.protect.info("Computer \(computer.serial, privacy: .public) was deleted.")
-                        foundComputers[index].status = "Deleted"
+                        foundComputers[index].status = "Success"
                     }
+                } else {
+                    foundComputers[index].status = "Failed"
+                    foundComputers[index].lastError = "Network error while deleting"
                 }
+                refreshProgressCounters()
             }
         }
-        
-        
-        if showError {
-            //Deletion was unsuccessful
-            alertMessage = "Could not Delete one or more computers"
-            alertTitle = "Error"
-            showAlert = true
-        } else {
-            //Deletion was successful
-            alertMessage = message
-            alertTitle = "Successful Deletion"
-            showAlert = true
-            deleteButtonDisabled = true
-        }
+        completeRunState()
+        updateDeleteButtonState()
     }
     
     
@@ -498,6 +676,151 @@ struct ContentView: View {
              foundComputers = items
         }
     }
+
+    // MARK: - Export Failures CSV
+    func exportFailuresCSV() {
+        let failures = failedItems()
+        guard failures.count > 0 else { return }
+        var csv = "serial,hostName,uuid,error\n"
+        for item in failures {
+            let line = "\(item.serial),\(item.hostName),\(item.uuid),\(item.lastError ?? "")\n"
+            csv.append(line)
+        }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [ .commaSeparatedText ]
+        panel.nameFieldStringValue = "jamf-protect-failures.csv"
+        panel.canCreateDirectories = true
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try csv.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                alertTitle = "Export Error"
+                alertMessage = "Could not write CSV file."
+                showAlert = true
+            }
+        }
+    }
+
+    // MARK: - Export Successes CSV
+    func exportSuccessesCSV() {
+        let successes = succeededItems()
+        guard successes.count > 0 else { return }
+        var csv = "serial,hostName,uuid\n"
+        for item in successes {
+            let line = "\(item.serial),\(item.hostName),\(item.uuid)\n"
+            csv.append(line)
+        }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [ .commaSeparatedText ]
+        panel.nameFieldStringValue = "jamf-protect-successes.csv"
+        panel.canCreateDirectories = true
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try csv.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                alertTitle = "Export Error"
+                alertMessage = "Could not write CSV file."
+                showAlert = true
+            }
+        }
+    }
+
+    // MARK: - Retry Failed (will be wired to exponential backoff next step)
+    func retryFailed() {
+        // This button will trigger the retry logic implemented in the next step
+        Task {
+            await retryFailedItemsWithBackoff()
+        }
+    }
+
+    // Placeholder for the actual retry implementation
+    func retryFailedItemsWithBackoff() async {
+        let jamfProtect = JamfProtectAPI()
+        let (authToken, _) = await jamfProtect.getToken(protectURL: protectURL, clientID: clientID, password: password)
+        guard let authToken else {
+            alertTitle = "Authentication Error"
+            alertMessage = "Could not authenticate. Please check your credentials."
+            showAlert = true
+            return
+        }
+
+        // Only operate on current failures
+        let failedIdx = indicesOfFailedItems()
+        guard !failedIdx.isEmpty else { return }
+
+        beginRetryState()
+
+        for idx in failedIdx {
+            // Mark as retried and compute per-item backoff
+            foundComputers[idx].retryCount += 1
+            let currentRetry = foundComputers[idx].retryCount
+            foundComputers[idx].status = "Retried (\(currentRetry))"
+            setCountersFromIndices(failedIdx)
+
+            // Exponential backoff with cap (base 0.5s)
+            let base: UInt64 = 500_000_000 // 0.5s in ns
+            let delay = min(base << UInt64(max(currentRetry - 1, 0)), UInt64(8_000_000_000)) // cap at 8s
+            try? await Task.sleep(nanoseconds: delay)
+
+            // Run deletion attempt (lookup if needed)
+            foundComputers[idx].status = "Running"
+            setCountersFromIndices(failedIdx)
+
+            // If uuid is missing, attempt to resolve by serial first
+            if foundComputers[idx].uuid.isEmpty {
+                let (computerResult, _) = await jamfProtect.listComputerBySerial(protectURL: protectURL , access_token: authToken.access_token, serial: foundComputers[idx].serial)
+                if let resolved = computerResult?.data.listComputers.items.first {
+                    foundComputers[idx].checkin = resolved.checkin
+                    foundComputers[idx].uuid = resolved.uuid
+                    foundComputers[idx].hostName = resolved.hostName
+                }
+            }
+
+            if foundComputers[idx].uuid.isEmpty == false {
+                if let responseCode = await jamfProtect.deleteComputer(protectURL: protectURL , access_token: authToken.access_token, uuid: foundComputers[idx].uuid) {
+                    if responseCode == 200 {
+                        foundComputers[idx].status = "Success"
+                        foundComputers[idx].lastError = nil
+                    } else {
+                        foundComputers[idx].status = "Failed"
+                        foundComputers[idx].lastError = "HTTP \(responseCode) while deleting"
+                    }
+                } else {
+                    foundComputers[idx].status = "Failed"
+                    foundComputers[idx].lastError = "Network error while deleting"
+                }
+            } else {
+                foundComputers[idx].status = "Failed"
+                foundComputers[idx].lastError = "Could not resolve UUID by serial"
+            }
+
+            setCountersFromIndices(failedIdx)
+        }
+
+        completeRunState()
+        updateDeleteButtonState()
+    }
+
+    // Recompute counters for a subset of indices (used for retries)
+    func setCountersFromIndices(_ indices: [Int]) {
+        totalToProcess = indices.count
+        var succeeded = 0
+        var failed = 0
+        var running = 0
+        var queued = 0
+        for i in indices {
+            let s = foundComputers[i].status.lowercased()
+            if s.contains("success") || s.contains("deleted") { succeeded += 1 }
+            else if s.contains("failed") || s.contains("error") { failed += 1 }
+            else if s.contains("running") { running += 1 }
+            else if s.contains("queued") || s.contains("retried") { queued += 1 }
+        }
+        numSucceeded = succeeded
+        numFailed = failed
+        numRunning = running
+        numQueued = queued
+        numProcessed = succeeded + failed
+    }
 }
 
 struct ContentView_Previews: PreviewProvider {
@@ -508,13 +831,26 @@ struct ContentView_Previews: PreviewProvider {
 
 
 
-extension String {
-    var validURL: Bool {
-        get {
-            let regEx = "^((http|https)://)[-a-zA-Z0-9@:%._\\+~#?&//=]{2,256}\\.[a-z]{2,6}\\b([-a-zA-Z0-9@:%._\\+~#?&//=]*)$"
-            let predicate = NSPredicate(format: "SELF MATCHES %@", argumentArray: [regEx])
-            return predicate.evaluate(with: self)
-        }
+// MARK: - Focused Values for Menu Commands
+struct ExportSuccessesActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+extension FocusedValues {
+    var exportSuccessesAction: (() -> Void)? {
+        get { self[ExportSuccessesActionKey.self] }
+        set { self[ExportSuccessesActionKey.self] = newValue }
     }
 }
+
+struct HasSuccessesKey: FocusedValueKey {
+    typealias Value = Bool
+}
+extension FocusedValues {
+    var hasSuccesses: Bool? {
+        get { self[HasSuccessesKey.self] }
+        set { self[HasSuccessesKey.self] = newValue }
+    }
+}
+
+
 
