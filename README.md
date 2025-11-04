@@ -93,6 +93,8 @@ log stream --predicate 'subsystem == "co.uk.mallion.jamf-protect-batch-delete"' 
 
 ## Roadmap
 
+See detailed priorities, acceptance criteria, and UI flows in `ROADMAP.md`.
+
 - Safer dry‑run preview before applying deletions
 - CSV export of fetched computers and selected deletions
 - Enhanced filters (check‑in ranges, alert state, hostname/serial patterns)
