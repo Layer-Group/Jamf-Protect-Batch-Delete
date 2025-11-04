@@ -1,4 +1,10 @@
 # Jamf-Protect-Batch-Delete
+### Fork and maintenance status
+
+This repository is a maintained continuation of the original Jamf-Protect-Batch-Delete project by red5coder. I have taken over the project to add new features and improvements while keeping compatibility with existing workflows.
+
+- Original repository: [red5coder/Jamf-Protect-Batch-Delete](https://github.com/red5coder/Jamf-Protect-Batch-Delete)
+
 Please NOTE the app is currently in beta.
 
 The "Jamf Protect Batch Delete" utility is a macOS app that allows you to batch delete computer records from a Jamf Protect tenant.
@@ -34,3 +40,15 @@ The app does log to Unified Logging. You can view the logs like this:
 
 
 <img width="1014" alt="Screenshot2" src="https://user-images.githubusercontent.com/29920386/221022124-c77f8982-2321-4ed9-a019-b788e430929e.png">
+
+### Roadmap
+
+- Safer dry-run mode to preview deletions before applying changes
+- CSV export of fetched computers and selected deletions
+- Enhanced filters (last check-in ranges, alert state, hostname/serial patterns)
+- Progress UI with retry options and detailed error reporting
+- Keyboard shortcuts and accessibility improvements
+
+### License and attribution
+
+Unless otherwise noted, this fork remains under the MIT License. Credit to the original author and repository: [red5coder/Jamf-Protect-Batch-Delete](https://github.com/red5coder/Jamf-Protect-Batch-Delete).
