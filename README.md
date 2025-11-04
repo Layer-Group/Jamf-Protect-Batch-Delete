@@ -39,7 +39,7 @@ The app does log to Unified Logging. You can view the logs like this:
 `log stream --predicate 'subsystem == "co.uk.mallion.jamf-protect-batch-delete"' --level info`
 
 
-<img width="1014" alt="Screenshot2" src="link">
+<img width="1014" alt="Screenshot2" src="https://github.com/Layer-Group/Jamf-Protect-Batch-Delete/blob/main/Screenshot/Screenshot1.png?raw=true">
 
 ### Roadmap
 
