@@ -1,54 +1,110 @@
-# Jamf-Protect-Batch-Delete
-### Fork and maintenance status
+# Jamf Protect Batch Delete
 
-This repository is a maintained continuation of the original Jamf-Protect-Batch-Delete project by red5coder. I have taken over the project to add new features and improvements while keeping compatibility with existing workflows.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%2013–15-blue)](#requirements)
+[![Status](https://img.shields.io/badge/status-beta-orange)](#status)
+
+Batch-delete computer records from your Jamf Protect tenant. This macOS app provides a fast UI to fetch stale devices by last check‑in or import a CSV of serial numbers, review the list, and safely delete in bulk.
+
+### Status
+
+This is an actively maintained fork of the original project by red5coder, with ongoing improvements to UX, reliability, and safety.
 
 - Original repository: [red5coder/Jamf-Protect-Batch-Delete](https://github.com/red5coder/Jamf-Protect-Batch-Delete)
+- Current status: beta (use with care; test in non‑production first)
 
-Please NOTE the app is currently in beta.
+## Features
 
-The "Jamf Protect Batch Delete" utility is a macOS app that allows you to batch delete computer records from a Jamf Protect tenant.
+- Fetch computers that have not checked in for a chosen timeframe (7–360 days or 0 days)
+- Import a CSV of serial numbers (single column, no header)
+- Search, sort, and select/deselect in a table view
+- Bulk delete with confirmation dialog
+- Optional Keychain storage for the API password
+- Unified Logging integration for audit/troubleshooting
 
-### Requirements
+## Requirements
 
-- A Mac running macOS Venture (13.0)
-- A Jamf Protect Tenant
-- A Jamf Protect API client needs to be created with the following permissions. 
+- A Mac running macOS Ventura (13), Sonoma (14), or Sequoia (15)
+- Xcode 15 or newer (tested on recent Xcode versions)
+- A Jamf Protect tenant
+- A Jamf Protect API client with permissions:
   - Read and Write for Computers
   - Read and Write for Alerts
 
-### Usage
-The app will require the credentials to access your Jamf Protect Tenant. This includes:
-  - Your Jamf Protect URL
-  - The Client ID for the API Client you created
-  - The password for the API client you created
-  
-You can fetch a list of computers from your Jamf Protect Ternant based on a last check-in period.
+## Install / Build
 
-You can also import a list of serial numbers from a csv file. The file just needs a single column of serial numbers.
+1. Clone this repo.
+2. Open `Jamf Protect Batch Delete.xcodeproj` in Xcode.
+3. Select the `Protect Batch Delete` scheme.
+4. Build & Run. Grant Keychain access on first run if you choose to save the password.
 
-i.e  
-ZRFN72C5GI  
-ZRFN63C5GJ  
+You can also Archive from Xcode to create a signed app for distribution in your organization.
+
+## Configure
+
+You will need the following from your Jamf Protect environment:
+
+- Jamf Protect URL (e.g., `https://your.protect.jamfcloud.com`)
+- API Client ID
+- API Client password
+
+Ensure the API client has the permissions listed in Requirements.
+
+## Usage
+
+1. Launch the app and enter your Protect URL, Client ID, and Password.
+2. (Optional) Enable “Save Password” to store the password in Keychain.
+3. Choose a "Not Checked‑in" range and click "Fetch" to pull devices from Jamf Protect.
+   - Or click "Import CSV" to bring in a single‑column list of serial numbers.
+4. Use search, sort, and selection tools to review the list.
+5. Click "Delete Selected" and confirm to proceed.
+
+### CSV format (example)
+
+```text
+ZRFN72C5GI
+ZRFN63C5GJ
 ZRFN91C5GH
+```
 
-You can then select which computers to delete.
+### Logging
 
-The app does log to Unified Logging. You can view the logs like this:
+The app writes to macOS Unified Logging. To stream logs:
 
-`log stream --predicate 'subsystem == "co.uk.mallion.jamf-protect-batch-delete"' --level info`
+```bash
+log stream --predicate 'subsystem == "co.uk.mallion.jamf-protect-batch-delete"' --level info
+```
 
+### Screenshot
 
-<img width="1014" alt="Screenshot2" src="https://github.com/Layer-Group/Jamf-Protect-Batch-Delete/blob/main/Screenshot/Screenshot1.png?raw=true">
+<img width="1014" alt="App screenshot showing batch delete UI" src="https://github.com/Layer-Group/Jamf-Protect-Batch-Delete/blob/main/Screenshot/Screenshot1.png?raw=true">
 
-### Roadmap
+## Security & Privacy
 
-- Safer dry-run mode to preview deletions before applying changes
+- The URL and Client ID are saved to `UserDefaults` for convenience.
+- If you enable “Save Password”, the password is stored in your Keychain under the service `co.uk.mallion.jamfprotect-batch-delete`.
+- Deletions are permanent in Jamf Protect. Perform a small test first and consider exporting a list of devices before bulk actions.
+
+## Troubleshooting
+
+- 401/403 authentication errors: verify the URL, Client ID, and password; confirm API client permissions; ensure the URL includes `https://` and your correct tenant domain.
+- No results when fetching: try a different last check‑in range; confirm devices actually meet the criteria.
+- CSV import issues: ensure the file is plain text CSV with a single column of serial numbers and no header row.
+
+## Roadmap
+
+- Safer dry‑run preview before applying deletions
 - CSV export of fetched computers and selected deletions
-- Enhanced filters (last check-in ranges, alert state, hostname/serial patterns)
-- Progress UI with retry options and detailed error reporting
+- Enhanced filters (check‑in ranges, alert state, hostname/serial patterns)
+- Progress UI with retries and clearer error reporting
 - Keyboard shortcuts and accessibility improvements
 
-### License and attribution
+## Contributing
 
-Unless otherwise noted, this fork remains under the MIT License. Credit to the original author and repository: [red5coder/Jamf-Protect-Batch-Delete](https://github.com/red5coder/Jamf-Protect-Batch-Delete).
+Issues and pull requests are welcome. Please include clear steps to reproduce problems and proposed changes. For larger changes, open an issue first to discuss direction.
+
+## License & Attribution
+
+MIT License. See `LICENSE` for details.
+
+This project builds on the original work by red5coder: [red5coder/Jamf-Protect-Batch-Delete](https://github.com/red5coder/Jamf-Protect-Batch-Delete).
