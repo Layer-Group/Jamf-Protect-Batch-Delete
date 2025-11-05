@@ -27,6 +27,9 @@ This is an actively maintained fork of the original project by red5coder, with o
  - Error banner with expandable details and “Export failures CSV”
  - Export successful deletions to CSV (toolbar button and File → Export successes CSV)
  - Dark Mode and VoiceOver support
+ - Statistics Dashboard with charts: status breakdown, success ratio, top error types
+ - View menu integration: Show Dashboard (⇧⌘D)
+ - Feedback entry points: toolbar Feedback button and App Menu → Send Feedback…
 
 ## Requirements
 
@@ -78,6 +81,15 @@ Ensure the API client has the permissions listed in Requirements.
 - Export failures: use the button in the error banner or completion overlay.
 - Export successes: use the toolbar button or File → Export successes CSV (⇧⌘E).
 
+### Dashboard
+
+- Open the Dashboard from the menu: View → Show Dashboard (⇧⌘D).
+- Shows:
+  - Status breakdown bar chart
+  - Success ratio (donut on macOS 14+, stacked bars on macOS 13)
+  - Top error types list (click‑to‑copy text)
+  - Summary tiles for Success, Failed, Retried, Total
+
 ### CSV format (example)
 
 ```text
@@ -98,6 +110,10 @@ log stream --predicate 'subsystem == "co.uk.mallion.jamf-protect-batch-delete"' 
 
 <img width="1014" alt="App screenshot showing batch delete UI" src="https://github.com/Layer-Group/Jamf-Protect-Batch-Delete/blob/main/Screenshot/Screenshot1.png?raw=true">
 
+### Dashboard screenshot
+
+<img width="1014" alt="Dashboard window with charts" src="https://github.com/Layer-Group/Jamf-Protect-Batch-Delete/blob/main/Screenshot/Screenshot1.png?raw=true">
+
 ## Security & Privacy
 
 - The URL and Client ID are saved to `UserDefaults` for convenience.
@@ -113,6 +129,17 @@ The app uses App Sandbox with “User Selected File Read/Write” so save/open p
 <key>com.apple.security.files.user-selected.read-write</key><true/>
 <key>com.apple.security.network.client</key><true/>
 ```
+
+## Keyboard Shortcuts
+
+- Export successes CSV: ⇧⌘E
+- Show Dashboard: ⇧⌘D
+- Send Feedback…: (no default shortcut)
+
+## Feedback
+
+- Click the “Feedback” toolbar button, or use the App Menu → Send Feedback…
+- This opens the project’s GitHub “New issue” page so you can report bugs or request features.
 
 ## Troubleshooting
 

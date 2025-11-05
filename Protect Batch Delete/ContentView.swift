@@ -6,11 +6,13 @@
 //
 
 import SwiftUI
+import AppKit
 import UniformTypeIdentifiers
 import os.log
 
 
 struct ContentView: View {
+    @EnvironmentObject var statsStore: RunStatsStore
     
     @State private var protectURL = ""
     @State private var clientID = ""
@@ -388,6 +390,12 @@ struct ContentView: View {
                 .accessibilityLabel("Export successes as CSV")
                 .disabled(succeededItems().isEmpty)
             }
+            ToolbarItem(placement: .automatic) {
+                Button(action: { openFeedback() }) {
+                    Label("Feedback", systemImage: "bubble.left.and.bubble.right")
+                }
+                .accessibilityLabel("Send feedback or feature request")
+            }
         }
         .focusedValue(\.exportSuccessesAction, { exportSuccessesCSV() })
         .focusedValue(\.hasSuccesses, !succeededItems().isEmpty)
@@ -443,6 +451,8 @@ struct ContentView: View {
         showErrorBanner = false
         errorDetailsExpanded = false
         refreshProgressCounters()
+        // Reset last run snapshot
+        statsStore.lastRunItems = []
     }
 
     func beginRetryState() {
@@ -463,6 +473,9 @@ struct ContentView: View {
         showErrorBanner = numFailed > 0
         // Only show the completion overlay when there are failures
         showProgressOverlay = numFailed > 0
+        // Snapshot results for the dashboard
+        statsStore.lastRunItems = foundComputers.filter { $0.delete }
+        statsStore.lastUpdated = Date()
     }
     
     
@@ -725,6 +738,13 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Feedback
+    func openFeedback() {
+        if let url = URL(string: "https://github.com/Layer-Group/Jamf-Protect-Batch-Delete/issues/new/choose") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     // MARK: - Retry Failed (will be wired to exponential backoff next step)
     func retryFailed() {
         // This button will trigger the retry logic implemented in the next step
@@ -854,3 +874,35 @@ extension FocusedValues {
 
 
 
+// MARK: - Run Statistics Store (inlined so it is included in the target)
+final class RunStatsStore: ObservableObject {
+    @Published var lastRunItems: [Item] = []
+    @Published var lastUpdated: Date? = nil
+
+    var total: Int { lastRunItems.count }
+    var successes: Int { lastRunItems.filter { $0.status.lowercased().contains("success") || $0.status.lowercased().contains("deleted") }.count }
+    var failures: Int { lastRunItems.filter { $0.status.lowercased().contains("failed") || $0.status.lowercased().contains("error") }.count }
+    var retried: Int { lastRunItems.filter { $0.status.lowercased().contains("retried") }.count }
+
+    var errorBreakdown: [(key: String, count: Int)] {
+        let errors = lastRunItems.compactMap { $0.lastError?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let counts = Dictionary(errors.map { ($0, 1) }, uniquingKeysWith: +)
+        return counts.sorted { $0.value > $1.value }.map { (key: $0.key, count: $0.value) }
+    }
+
+    var statusBreakdown: [(key: String, count: Int)] {
+        let statuses = lastRunItems.map { normalizedStatus($0.status) }
+        let counts = Dictionary(statuses.map { ($0, 1) }, uniquingKeysWith: +)
+        return counts.sorted { $0.value > $1.value }.map { (key: $0.key, count: $0.value) }
+    }
+
+    private func normalizedStatus(_ raw: String) -> String {
+        let s = raw.lowercased()
+        if s.contains("success") || s.contains("deleted") { return "Success" }
+        if s.contains("failed") || s.contains("error") { return "Failed" }
+        if s.contains("running") { return "Running" }
+        if s.contains("queued") { return "Queued" }
+        if s.contains("retried") { return "Retried" }
+        return raw.capitalized
+    }
+}

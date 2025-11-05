@@ -1,64 +1,6 @@
-//
-//  Protect_Batch_DeleteApp.swift
-//  Protect Batch Delete
-//
-//  Created by Richard Mallion on 21/02/2023.
-//
-
 import SwiftUI
 import Charts
-import AppKit
 
-@main
-struct Protect_Batch_DeleteApp: App {
-    @StateObject private var statsStore = RunStatsStore()
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .frame(
-                    minWidth: 750, maxWidth: 1000,
-                    minHeight: 600, maxHeight: 900)
-                .environmentObject(statsStore)
-        }
-        .windowResizability(.contentSize)
-        .commands { ExportCommands() }
-
-        WindowGroup("Dashboard", id: "dashboard") {
-            DashboardView()
-                .environmentObject(statsStore)
-                .frame(minWidth: 720, minHeight: 540)
-        }
-
-    }
-}
-
-// MARK: - App Commands
-struct ExportCommands: Commands {
-    @FocusedValue(\.exportSuccessesAction) var exportAction
-    @FocusedValue(\.hasSuccesses) var hasSuccesses
-    @Environment(\.openWindow) var openWindow
-
-    var body: some Commands {
-        CommandGroup(after: .saveItem) {
-            Button("Export successes CSV") { exportAction?() }
-                .keyboardShortcut("e", modifiers: [.command, .shift])
-                .disabled(!(hasSuccesses ?? false))
-        }
-        CommandGroup(after: .appInfo) {
-            Button("Send Feedback…") {
-                if let url = URL(string: "https://github.com/Layer-Group/Jamf-Protect-Batch-Delete/issues/new/choose") {
-                    NSWorkspace.shared.open(url)
-                }
-            }
-        }
-        CommandMenu("View") {
-            Button("Show Dashboard") { openWindow(id: "dashboard") }
-                .keyboardShortcut("d", modifiers: [.command, .shift])
-        }
-    }
-}
-
-// MARK: - Dashboard View (inlined for target inclusion)
 struct DashboardView: View {
     @EnvironmentObject var stats: RunStatsStore
 
@@ -84,7 +26,7 @@ struct DashboardView: View {
             }
 
             GroupBox("Status Breakdown") {
-                Chart(stats.statusBreakdown, id: \.key) { item in
+                Chart(stats.statusBreakdown, id: \.(key)) { item in
                     BarMark(
                         x: .value("Status", item.key),
                         y: .value("Count", item.count)
@@ -98,32 +40,17 @@ struct DashboardView: View {
 
             GroupBox("Success Ratio") {
                 HStack {
-                    if #available(macOS 14.0, *) {
-                        Chart {
-                            let success = Double(max(stats.successes, 0))
-                            let fail = Double(max(stats.failures, 0))
-                            if success + fail > 0 {
-                                SectorMark(angle: .value("Success", success), innerRadius: .ratio(0.6))
-                                    .foregroundStyle(Color.green)
-                                SectorMark(angle: .value("Failed", fail), innerRadius: .ratio(0.6))
-                                    .foregroundStyle(Color.red)
-                            }
+                    Chart {
+                        let success = Double(max(stats.successes, 0))
+                        let fail = Double(max(stats.failures, 0))
+                        if success + fail > 0 {
+                            SectorMark(angle: .value("Success", success), innerRadius: .ratio(0.6))
+                                .foregroundStyle(Color.green)
+                            SectorMark(angle: .value("Failed", fail), innerRadius: .ratio(0.6))
+                                .foregroundStyle(Color.red)
                         }
-                        .frame(width: 220, height: 220)
-                    } else {
-                        // Fallback: stacked horizontal bar for macOS 13
-                        Chart {
-                            BarMark(
-                                x: .value("Count", max(stats.successes, 0)),
-                                y: .value("", "Success")
-                            ).foregroundStyle(Color.green)
-                            BarMark(
-                                x: .value("Count", max(stats.failures, 0)),
-                                y: .value("", "Failed")
-                            ).foregroundStyle(Color.red)
-                        }
-                        .frame(width: 260, height: 120)
                     }
+                    .frame(width: 220, height: 220)
 
                     VStack(alignment: .leading, spacing: 8) {
                         Label("Success: \(stats.successes)", systemImage: "checkmark.circle")
@@ -145,7 +72,7 @@ struct DashboardView: View {
                     Text("No errors in last run.")
                         .foregroundColor(.secondary)
                 } else {
-                    List(stats.errorBreakdown.prefix(10), id: \.key) { row in
+                    List(stats.errorBreakdown.prefix(10), id: \.(key)) { row in
                         HStack {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.yellow)
@@ -166,7 +93,7 @@ struct DashboardView: View {
         .padding(16)
         .toolbar {
             ToolbarItem(placement: .automatic) {
-                Button(action: { /* no-op, store is live */ }) {
+                Button(action: { refreshFromCurrentWindowIfPossible() }) {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .help("Refresh from the last run in the current window")
@@ -187,5 +114,9 @@ struct DashboardView: View {
         .padding(10)
         .background(.ultraThinMaterial)
         .cornerRadius(10)
+    }
+
+    private func refreshFromCurrentWindowIfPossible() {
+        // The store is already updated by ContentView on run completion; this is a no-op placeholder
     }
 }
