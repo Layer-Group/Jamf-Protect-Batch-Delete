@@ -42,12 +42,14 @@ This is an actively maintained fork of the original project by red5coder, with o
 
 ## Install / Build
 
-1. Clone this repo.
-2. Open `Jamf Protect Batch Delete.xcodeproj` in Xcode.
-3. Select the `Protect Batch Delete` scheme.
-4. Build & Run. Grant Keychain access on first run if you choose to save the password.
+🚀 Download and run the latest app – no Xcode required.
 
-You can also Archive from Xcode to create a signed app for distribution in your organization.
+- **Download**: Grab the newest release from the [Releases](https://github.com/Layer-Group/Jamf-Protect-Batch-Delete/releases) page.
+- **Install**: Open the downloaded `.dmg` or `.zip` and drag the app to `Applications`.
+- **First run**: On first launch, macOS may show a Gatekeeper prompt. If needed, Control‑click the app and choose “Open”.
+- **Permissions**: The app uses App Sandbox with “User Selected File Read/Write” and network access. You’ll be prompted when exporting files. 🔐
+
+🧪 Prefer to build from source? You still can: open `Jamf Protect Batch Delete.xcodeproj` in Xcode and run the `Protect Batch Delete` scheme.
 
 ## Configure
 

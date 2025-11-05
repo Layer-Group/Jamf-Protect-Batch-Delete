@@ -7,11 +7,13 @@
 
 import SwiftUI
 import Charts
+import CryptoKit
 import AppKit
 
 @main
 struct Protect_Batch_DeleteApp: App {
     @StateObject private var statsStore = RunStatsStore()
+    @StateObject private var auditStore = AuditLogStore()
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -19,6 +21,7 @@ struct Protect_Batch_DeleteApp: App {
                     minWidth: 750, maxWidth: 1000,
                     minHeight: 600, maxHeight: 900)
                 .environmentObject(statsStore)
+                .environmentObject(auditStore)
         }
         .windowResizability(.contentSize)
         .commands { ExportCommands() }
@@ -37,12 +40,16 @@ struct ExportCommands: Commands {
     @FocusedValue(\.exportSuccessesAction) var exportAction
     @FocusedValue(\.hasSuccesses) var hasSuccesses
     @Environment(\.openWindow) var openWindow
+    @EnvironmentObject var auditStore: AuditLogStore
 
     var body: some Commands {
         CommandGroup(after: .saveItem) {
             Button("Export successes CSV") { exportAction?() }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(!(hasSuccesses ?? false))
+            Divider()
+            Button("Export Audit Log…") { auditStore.exportSignedAuditLog() }
+                .keyboardShortcut("l", modifiers: [.command, .shift])
         }
         CommandGroup(after: .appInfo) {
             Button("Send Feedback…") {
@@ -54,6 +61,12 @@ struct ExportCommands: Commands {
         CommandMenu("View") {
             Button("Show Dashboard") { openWindow(id: "dashboard") }
                 .keyboardShortcut("d", modifiers: [.command, .shift])
+            Divider()
+            Button("Export successes CSV") { exportAction?() }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+                .disabled(!(hasSuccesses ?? false))
+            Button("Export Audit Log…") { auditStore.exportSignedAuditLog() }
+                .keyboardShortcut("l", modifiers: [.command, .shift])
         }
     }
 }

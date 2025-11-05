@@ -7,12 +7,14 @@
 
 import SwiftUI
 import AppKit
+import CryptoKit
 import UniformTypeIdentifiers
 import os.log
 
 
 struct ContentView: View {
     @EnvironmentObject var statsStore: RunStatsStore
+    @EnvironmentObject var auditStore: AuditLogStore
     
     @State private var protectURL = ""
     @State private var clientID = ""
@@ -396,6 +398,13 @@ struct ContentView: View {
                 }
                 .accessibilityLabel("Send feedback or feature request")
             }
+            ToolbarItem(placement: .automatic) {
+                Button(action: { auditStore.exportSignedAuditLog() }) {
+                    Label("Export Audit Log", systemImage: "doc.plaintext")
+                }
+                .accessibilityLabel("Export signed audit log")
+                .disabled(auditStore.entries.isEmpty)
+            }
         }
         .focusedValue(\.exportSuccessesAction, { exportSuccessesCSV() })
         .focusedValue(\.hasSuccesses, !succeededItems().isEmpty)
@@ -573,15 +582,18 @@ struct ContentView: View {
                             Logger.protect.error("Could not delete computer \(computer.serial, privacy: .public), error \(responseCode).")
                             foundComputers[index].status = "Failed"
                             foundComputers[index].lastError = "HTTP \(responseCode) while deleting"
+                            appendAudit(for: foundComputers[index], outcome: "failure", responseCode: responseCode)
                         } else {
                             Logger.protect.info("Computer \(computer.serial, privacy: .public) was deleted.")
                             foundComputers[index].status = "Success"
+                            appendAudit(for: foundComputers[index], outcome: "success", responseCode: 200)
                         }
                     }
                 } else {
                     Logger.protect.error("Could not find computer \(computer.serial, privacy: .public).")
                     foundComputers[index].status = "Failed"
                     foundComputers[index].lastError = "Lookup failed (\(computerResponse ?? 0))"
+                    appendAudit(for: foundComputers[index], outcome: "failure", responseCode: computerResponse)
                 }
                 refreshProgressCounters()
             }
@@ -614,13 +626,16 @@ struct ContentView: View {
                         Logger.protect.error("Could not delete computer \(computer.serial, privacy: .public), error \(responseCode).")
                         foundComputers[index].status = "Failed"
                         foundComputers[index].lastError = "HTTP \(responseCode) while deleting"
+                        appendAudit(for: foundComputers[index], outcome: "failure", responseCode: responseCode)
                     } else {
                         Logger.protect.info("Computer \(computer.serial, privacy: .public) was deleted.")
                         foundComputers[index].status = "Success"
+                        appendAudit(for: foundComputers[index], outcome: "success", responseCode: 200)
                     }
                 } else {
                     foundComputers[index].status = "Failed"
                     foundComputers[index].lastError = "Network error while deleting"
+                    appendAudit(for: foundComputers[index], outcome: "failure", responseCode: nil)
                 }
                 refreshProgressCounters()
             }
@@ -743,6 +758,25 @@ struct ContentView: View {
         if let url = URL(string: "https://github.com/Layer-Group/Jamf-Protect-Batch-Delete/issues/new/choose") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    // MARK: - Audit helpers
+    func appendAudit(for item: Item, outcome: String, responseCode: Int?) {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions.insert(.withFractionalSeconds)
+        let entry = AuditEntry(
+            timestamp: formatter.string(from: Date()),
+            actor: clientID,
+            action: "delete",
+            source: importedFromCVS ? "csv" : "fetch",
+            serial: item.serial,
+            uuid: item.uuid,
+            hostName: item.hostName,
+            outcome: outcome,
+            responseCode: responseCode,
+            error: item.lastError
+        )
+        auditStore.append(entry)
     }
 
     // MARK: - Retry Failed (will be wired to exponential backoff next step)
@@ -904,5 +938,86 @@ final class RunStatsStore: ObservableObject {
         if s.contains("queued") { return "Queued" }
         if s.contains("retried") { return "Retried" }
         return raw.capitalized
+    }
+}
+
+// MARK: - Audit Log (inlined so it is included in the target)
+struct AuditEntry: Codable {
+    let timestamp: String
+    let actor: String
+    let action: String
+    let source: String
+    let serial: String
+    let uuid: String
+    let hostName: String
+    let outcome: String
+    let responseCode: Int?
+    let error: String?
+}
+
+struct SignedAuditEnvelope: Codable {
+    let entries: [AuditEntry]
+    let signatureBase64: String
+    let publicKeyBase64: String
+    let algorithm: String
+}
+
+final class AuditLogStore: ObservableObject {
+    @Published private(set) var entries: [AuditEntry] = []
+
+    private let keyService = "co.uk.mallion.jamfprotect-batch-delete.audit"
+    private let keyAccount = "privateKey"
+
+    func append(_ entry: AuditEntry) { entries.append(entry) }
+    func clear() { entries.removeAll() }
+
+    func exportSignedAuditLog() {
+        guard entries.isEmpty == false else { return }
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            let payload = try encoder.encode(entries)
+            let privKey = try loadOrCreatePrivateKey()
+            let signature = try sign(data: payload, with: privKey)
+            let envelope = SignedAuditEnvelope(
+                entries: entries,
+                signatureBase64: Data(signature).base64EncodedString(),
+                publicKeyBase64: privKey.publicKey.derRepresentation.base64EncodedString(),
+                algorithm: "P256-SHA256"
+            )
+            let envelopeData = try JSONEncoder().encode(envelope)
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [ .json ]
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions.insert(.withFractionalSeconds)
+            let ts = formatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
+            panel.nameFieldStringValue = "audit-log-\(ts).json"
+            panel.canCreateDirectories = true
+            if panel.runModal() == .OK, let url = panel.url {
+                try envelopeData.write(to: url, options: .atomic)
+            }
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Export Error"
+            alert.informativeText = "Could not export signed audit log.\n\n\(error.localizedDescription)"
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
+    }
+
+    private func loadOrCreatePrivateKey() throws -> P256.Signing.PrivateKey {
+        let creds = Keychain().retrieve(service: keyService)
+        if creds.count == 2, creds[0] == keyAccount, let data = Data(base64Encoded: creds[1]), let key = try? P256.Signing.PrivateKey(rawRepresentation: data) {
+            return key
+        }
+        let newKey = P256.Signing.PrivateKey()
+        let b64 = Data(newKey.rawRepresentation).base64EncodedString()
+        Keychain().save(service: keyService, account: keyAccount, data: b64)
+        return newKey
+    }
+
+    private func sign(data: Data, with key: P256.Signing.PrivateKey) throws -> Data {
+        let sig = try key.signature(for: SHA256.hash(data: data))
+        return sig.derRepresentation
     }
 }
