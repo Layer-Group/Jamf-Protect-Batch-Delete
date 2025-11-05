@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%2013–15-blue)](#requirements)
-[![Status](https://img.shields.io/badge/status-beta-orange)](#status)
+[![Status](https://img.shields.io/badge/status-production-brightgreen)](#status)
 
 Batch-delete computer records from your Jamf Protect tenant. This macOS app provides a fast UI to fetch stale devices by last check‑in or import a CSV of serial numbers, review the list, and safely delete in bulk.
 
@@ -11,7 +11,7 @@ Batch-delete computer records from your Jamf Protect tenant. This macOS app prov
 This is an actively maintained fork of the original project by red5coder, with ongoing improvements to UX, reliability, and safety.
 
 - Original repository: [red5coder/Jamf-Protect-Batch-Delete](https://github.com/red5coder/Jamf-Protect-Batch-Delete)
-- Current status: beta (use with care; test in non‑production first)
+- Current status: production (stable; suitable for production use)
 
 ## ✨ Features
 
