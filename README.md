@@ -114,7 +114,7 @@ log stream --predicate 'subsystem == "co.uk.mallion.jamf-protect-batch-delete"' 
 
 ### Dashboard screenshot
 
-<img width="1014" alt="Dashboard window with charts" src="https://github.com/Layer-Group/Jamf-Protect-Batch-Delete/blob/main/Screenshot/Screenshot1.png?raw=true">
+<img width="1014" alt="Dashboard window with charts" src="https://github.com/Layer-Group/Jamf-Protect-Batch-Delete/blob/main/Screenshot/dashboard1.png?raw=true">
 
 ## Security & Privacy
 
